@@ -1,11 +1,10 @@
 name: Docker Release Template
 
 on:
-  workflow_call:
-    inputs:
-      registry_prefix:
-        required: true
-        type: string  # e.g. us-central1-docker.pkg.dev/my-project/my-repo
+  workflow_call: {}
+
+env:
+  REGISTRY_PREFIX: us-central1-docker.pkg.dev/lytic-brew-mira-development/containers
 
 jobs:
   docker-publish:
@@ -27,13 +26,13 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker ${{ inputs.registry_prefix }}
+        run: gcloud auth configure-docker ${{ env.REGISTRY_PREFIX }}
 
       - name: Build and Push Docker image
         env:
-          REGISTRY_PREFIX: ${{ inputs.registry_prefix }}
           REPO_NAME: ${{ github.event.repository.name }}
+          IMAGE_NAME: ${{ env.REGISTRY_PREFIX }}/${{ github.event.repository.name }}
         run: |
-          IMAGE_NAME=\"$REGISTRY_PREFIX/$REPO_NAME\"
+          echo "Building image: $IMAGE_NAME"
           docker build -t $IMAGE_NAME .
           docker push $IMAGE_NAME
