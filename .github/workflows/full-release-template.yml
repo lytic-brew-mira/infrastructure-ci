@@ -8,7 +8,7 @@ permissions:
   id-token: write
 
 env:
-  REGISTRY_PREFIX: us-central1-docker.pkg.dev/lytic-brew-mira-development/containers
+  REGISTRY_PREFIX: docker-us-central1.pkg.dev/lytic-brew-mira-development/containers
 
 jobs:
   tag-and-release:
@@ -26,20 +26,21 @@ jobs:
       - name: Set up Docker
         uses: docker/setup-buildx-action@v2
 
-      - name: Debug WIF_PROVIDER directly
-        run: echo "WIF_PROVIDER is '${{ secrets.WIF_PROVIDER }}'"
-
-      - name: Dump environment for WIF vars
-        run: env | grep WIF || echo "WIF not found"
-        
       - name: Auth to GCP
         uses: google-github-actions/auth@v1
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-      - name: Configure Docker
-        run: gcloud auth configure-docker ${{ env.REGISTRY_PREFIX }}
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker docker-us-central1.pkg.dev
+
+      - name: Debug Authentication (optional - remove in production)
+        run: |
+          echo "Current user:"
+          gcloud auth list
+          echo "Testing registry access:"
+          gcloud artifacts repositories list --location=us-central1 --limit=1
 
       - name: Build and Push Docker Image
         env:
@@ -47,6 +48,7 @@ jobs:
         run: |
           echo "Building image: $IMAGE_NAME:${{ steps.tagging.outputs.new_tag }}"
           docker build -t $IMAGE_NAME:${{ steps.tagging.outputs.new_tag }} .
+          echo "Pushing image: $IMAGE_NAME:${{ steps.tagging.outputs.new_tag }}"
           docker push $IMAGE_NAME:${{ steps.tagging.outputs.new_tag }}
 
       - name: Deploy to Cloud Run
