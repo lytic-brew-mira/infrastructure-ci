@@ -34,39 +34,45 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           token_format: access_token
 
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Login to Artifact Registry using Docker
+      - name: Login to Artifact Registry
         uses: docker/login-action@v3
         with:
           registry: us-central1-docker.pkg.dev
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
-      - name: Debug Authentication
-        run: |
-          echo "Access token obtained successfully"
-          gcloud config set project lytic-brew-mira-development
-          echo "Project set to lytic-brew-mira-development"
-
       - name: Build and Push Docker Image
         env:
           IMAGE_NAME: ${{ env.REGISTRY_PREFIX }}/${{ github.event.repository.name }}
         run: |
-          echo "Building image: $IMAGE_NAME:${{ steps.tagging.outputs.new_tag }}"
-          docker build -t $IMAGE_NAME:${{ steps.tagging.outputs.new_tag }} .
-          echo "Pushing image: $IMAGE_NAME:${{ steps.tagging.outputs.new_tag }}"
-          docker push $IMAGE_NAME:${{ steps.tagging.outputs.new_tag }}
+          IMAGE_URL="$IMAGE_NAME:${{ steps.tagging.outputs.new_tag }}"
+          echo "Building image: $IMAGE_URL"
+          docker build -t $IMAGE_URL .
+          echo "Pushing image: $IMAGE_URL"
+          docker push $IMAGE_URL
+          echo "✅ Image pushed successfully: $IMAGE_URL"
 
-      - name: Deploy to Cloud Run
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
         env:
-          IMAGE_NAME: ${{ env.REGISTRY_PREFIX }}/${{ github.event.repository.name }}
-        run: |
-          gcloud run deploy journal-backend \
-            --image=$IMAGE_NAME:${{ steps.tagging.outputs.new_tag }} \
-            --region=us-central1 \
-            --platform=managed \
-            --service-account=journal-backend-sa@lytic-brew-mira-development.iam.gserviceaccount.com \
-            --set-env-vars=GCP_PROJECT=lytic-brew-mira-development \
-            --allow-unauthenticated
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tagging.outputs.new_tag }}
+          release_name: Release ${{ steps.tagging.outputs.new_tag }}
+          body: |
+            ## 🚀 Ready to Deploy
+            
+            **Docker Image:**
+            ```
+            us-central1-docker.pkg.dev/lytic-brew-mira-development/containers/journal-backend:${{ steps.tagging.outputs.new_tag }}
+            ```
+            
+            **To deploy manually:**
+            1. Go to Actions tab
+            2. Run "Deploy to Cloud Run" workflow
+            3. Enter tag: `${{ steps.tagging.outputs.new_tag }}`
+            
+            ## Changes
+            ${{ steps.tagging.outputs.changelog }}
+          draft: false
+          prerelease: false
