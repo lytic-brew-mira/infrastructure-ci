@@ -32,27 +32,23 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
-        # Remove project_id to avoid the config set command that's failing
 
-      - name: Manually set project
-        run: |
-          echo "Setting project manually..."
-          gcloud config set project lytic-brew-mira-development
+      - name: Login to Artifact Registry using Docker
+        uses: docker/login-action@v3
+        with:
+          registry: us-central1-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
 
       - name: Debug Authentication
         run: |
-          echo "Current user:"
-          gcloud auth list --filter=status:ACTIVE --format="value(account)"
-          echo "Project config:"
-          gcloud config list --format="value(core.project)"
-          echo "Testing basic gcloud command:"
-          gcloud projects describe lytic-brew-mira-development --format="value(projectId)"
-
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+          echo "Access token obtained successfully"
+          gcloud config set project lytic-brew-mira-development
+          echo "Project set to lytic-brew-mira-development"
 
       - name: Build and Push Docker Image
         env:
