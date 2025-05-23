@@ -1,0 +1,115 @@
+name: Deploy to Cloud Run
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Docker image tag to deploy'
+        required: true
+        type: string
+      service_name:
+        description: 'Cloud Run service name'
+        required: true
+        type: string
+      region:
+        description: 'GCP region'
+        required: false
+        type: string
+        default: 'us-central1'
+      project_id:
+        description: 'GCP project ID'
+        required: false
+        type: string
+        default: 'lytic-brew-mira-development'
+      registry_prefix:
+        description: 'Artifact Registry prefix'
+        required: false
+        type: string
+        default: 'us-central1-docker.pkg.dev/lytic-brew-mira-development/containers'
+      service_account:
+        description: 'Cloud Run service account'
+        required: false
+        type: string
+        default: 'journal-backend-sa@lytic-brew-mira-development.iam.gserviceaccount.com'
+      port:
+        description: 'Container port'
+        required: false
+        type: string
+        default: '8080'
+      allow_unauthenticated:
+        description: 'Allow unauthenticated requests'
+        required: false
+        type: boolean
+        default: true
+      environment_vars:
+        description: 'Environment variables (comma-separated key=value pairs)'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      WIF_PROVIDER:
+        description: 'Workload Identity Federation Provider'
+        required: true
+      GCP_SERVICE_ACCOUNT:
+        description: 'GCP Service Account'
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Auth to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ inputs.project_id }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          # Build the image URL
+          IMAGE_URL="${{ inputs.registry_prefix }}/${{ github.event.repository.name }}:${{ inputs.tag }}"
+          
+          # Build environment variables argument
+          ENV_VARS="GCP_PROJECT=${{ inputs.project_id }}"
+          if [ -n "${{ inputs.environment_vars }}" ]; then
+            ENV_VARS="${ENV_VARS},${{ inputs.environment_vars }}"
+          fi
+          
+          # Build the gcloud command
+          DEPLOY_CMD="gcloud run deploy ${{ inputs.service_name }} \
+            --image=$IMAGE_URL \
+            --region=${{ inputs.region }} \
+            --platform=managed \
+            --service-account=${{ inputs.service_account }} \
+            --set-env-vars=$ENV_VARS \
+            --port=${{ inputs.port }}"
+          
+          # Add authentication flag
+          if [ "${{ inputs.allow_unauthenticated }}" = "true" ]; then
+            DEPLOY_CMD="$DEPLOY_CMD --allow-unauthenticated"
+          else
+            DEPLOY_CMD="$DEPLOY_CMD --no-allow-unauthenticated"
+          fi
+          
+          echo "🚀 Deploying $IMAGE_URL to Cloud Run..."
+          echo "Command: $DEPLOY_CMD"
+          
+          # Execute the deployment
+          eval $DEPLOY_CMD
+
+      - name: Get Service URL
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ inputs.service_name }} --region=${{ inputs.region }} --format="value(status.url)")
+          echo "✅ Deployment successful!"
+          echo "🌐 Service URL: $SERVICE_URL"
+          echo "📦 Image: ${{ inputs.registry_prefix }}/${{ github.event.repository.name }}:${{ inputs.tag }}"
