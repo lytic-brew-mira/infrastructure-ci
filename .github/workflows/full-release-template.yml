@@ -35,18 +35,24 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: lytic-brew-mira-development
+        # Remove project_id to avoid the config set command that's failing
 
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+      - name: Manually set project
+        run: |
+          echo "Setting project manually..."
+          gcloud config set project lytic-brew-mira-development
 
-      - name: Debug Authentication (optional - remove in production)
+      - name: Debug Authentication
         run: |
           echo "Current user:"
           gcloud auth list --filter=status:ACTIVE --format="value(account)"
           echo "Project config:"
           gcloud config list --format="value(core.project)"
+          echo "Testing basic gcloud command:"
+          gcloud projects describe lytic-brew-mira-development --format="value(projectId)"
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
 
       - name: Build and Push Docker Image
         env:
