@@ -1,3 +1,4 @@
+# infrastructure-ci/.github/workflows/deploy-to-cloudrun.yml
 name: Deploy to Cloud Run
 
 on:
@@ -40,7 +41,12 @@ on:
         description: 'Allow unauthenticated requests'
         required: false
         type: boolean
-        default: true
+        default: false
+      ingress:
+        description: 'Ingress settings (all, internal, internal-and-cloud-load-balancing)'
+        required: false
+        type: string
+        default: 'internal'
       environment_vars:
         description: 'Environment variables (comma-separated key=value pairs)'
         required: false
@@ -92,7 +98,8 @@ jobs:
             --platform=managed \
             --service-account=${{ inputs.service_account }} \
             --set-env-vars=$ENV_VARS \
-            --port=${{ inputs.port }}"
+            --port=${{ inputs.port }} \
+            --ingress=${{ inputs.ingress }}"
           
           # Add authentication flag
           if [ "${{ inputs.allow_unauthenticated }}" = "true" ]; then
